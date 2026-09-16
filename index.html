@@ -1,0 +1,691 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>XM 到底是什么 · 面向 ft2-clone 源码的 XM 模块格式详解</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --bg-soft: #161b22;
+    --bg-code: #1c2128;
+    --border: #30363d;
+    --text: #c9d1d9;
+    --text-strong: #f0f6fc;
+    --text-dim: #8b949e;
+    --accent: #58a6ff;
+    --accent-2: #3fb950;
+    --warn: #d29922;
+    --warn-bg: #2d2410;
+    --red: #f85149;
+    --mono: "SFMono-Regular", "JetBrains Mono", Consolas, "Liberation Mono", Menlo, monospace;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+                 "Hiragino Sans GB", "Microsoft YaHei", Roboto, Helvetica, Arial, sans-serif;
+    line-height: 1.75;
+    font-size: 16px;
+  }
+  .wrap {
+    max-width: 980px;
+    margin: 0 auto;
+    padding: 48px 28px 96px;
+  }
+  /* Header */
+  header.doc-head {
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 28px;
+    margin-bottom: 36px;
+  }
+  header.doc-head h1 {
+    font-size: 2.1rem;
+    color: var(--text-strong);
+    margin: 0 0 12px;
+    letter-spacing: 0.5px;
+  }
+  header.doc-head .subtitle {
+    color: var(--text-dim);
+    font-size: 1.02rem;
+  }
+  header.doc-head blockquote {
+    margin: 18px 0 0;
+    padding: 12px 18px;
+    background: var(--bg-soft);
+    border-left: 3px solid var(--accent);
+    color: var(--text-dim);
+    font-size: 0.94rem;
+  }
+  /* TOC */
+  nav.toc {
+    background: var(--bg-soft);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 20px 26px;
+    margin-bottom: 44px;
+  }
+  nav.toc h2 {
+    font-size: 1rem;
+    margin: 0 0 12px;
+    color: var(--accent);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+  nav.toc ol {
+    margin: 0;
+    padding-left: 22px;
+    columns: 2;
+    column-gap: 40px;
+  }
+  nav.toc li { margin: 4px 0; }
+  nav.toc a {
+    color: var(--text);
+    text-decoration: none;
+    font-size: 0.92rem;
+  }
+  nav.toc a:hover { color: var(--accent); }
+  /* Sections */
+  section { margin-bottom: 52px; }
+  h2 {
+    font-size: 1.5rem;
+    color: var(--text-strong);
+    border-left: 4px solid var(--accent);
+    padding-left: 14px;
+    margin: 0 0 22px;
+    line-height: 1.3;
+  }
+  h3 {
+    font-size: 1.15rem;
+    color: var(--text-strong);
+    margin: 30px 0 14px;
+  }
+  p { margin: 14px 0; }
+  strong { color: var(--text-strong); }
+  code {
+    font-family: var(--mono);
+    font-size: 0.88em;
+    background: var(--bg-code);
+    color: #ffa657;
+    padding: 2px 6px;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+  }
+  /* Tables */
+  .table-scroll { overflow-x: auto; margin: 18px 0; }
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    font-size: 0.9rem;
+    background: var(--bg-soft);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+  }
+  thead th {
+    background: #21262d;
+    color: var(--text-strong);
+    text-align: left;
+    padding: 10px 14px;
+    border-bottom: 2px solid var(--border);
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  tbody td {
+    padding: 9px 14px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr:nth-child(even) { background: rgba(255,255,255,0.02); }
+  td code, th code { white-space: nowrap; }
+  /* Code blocks */
+  pre {
+    background: var(--bg-code);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 18px 20px;
+    overflow-x: auto;
+    font-family: var(--mono);
+    font-size: 0.85rem;
+    line-height: 1.6;
+    color: #c9d1d9;
+    margin: 18px 0;
+  }
+  pre code {
+    background: none;
+    border: none;
+    padding: 0;
+    color: inherit;
+    font-size: inherit;
+  }
+  /* Callout */
+  .callout {
+    border: 1px solid var(--warn);
+    background: var(--warn-bg);
+    border-radius: 8px;
+    padding: 14px 20px;
+    margin: 20px 0;
+    color: #e3c87e;
+  }
+  .callout strong { color: #ffd866; }
+  .note {
+    border-left: 3px solid var(--text-dim);
+    padding: 8px 16px;
+    color: var(--text-dim);
+    font-size: 0.9rem;
+    margin: 16px 0;
+  }
+  /* Byte map */
+  .bytemap {
+    font-family: var(--mono);
+    font-size: 0.82rem;
+    line-height: 1.5;
+    color: #7ee787;
+    white-space: pre;
+  }
+  /* Conclusion */
+  .conclusion {
+    background: var(--bg-soft);
+    border: 1px solid var(--accent);
+    border-radius: 10px;
+    padding: 24px 28px;
+    margin-top: 40px;
+  }
+  .conclusion strong { color: var(--accent); }
+  footer {
+    margin-top: 60px;
+    padding-top: 22px;
+    border-top: 1px solid var(--border);
+    color: var(--text-dim);
+    font-size: 0.82rem;
+    text-align: center;
+  }
+  a.src { color: var(--accent-2); text-decoration: none; }
+  a.src:hover { text-decoration: underline; }
+  @media (max-width: 640px) {
+    nav.toc ol { columns: 1; }
+    header.doc-head h1 { font-size: 1.6rem; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="doc-head">
+  <h1>XM 到底是什么</h1>
+  <div class="subtitle">面向 ft2-clone 源码的 XM 模块格式详解</div>
+  <blockquote>
+    所有字段偏移、结构尺寸与行为描述均以本仓库 <code>src/</code> 下的实际实现为准，而非泛泛的格式说明。
+  </blockquote>
+</header>
+
+<nav class="toc">
+  <h2>目录</h2>
+  <ol>
+    <li><a href="#s1">一句话定义</a></li>
+    <li><a href="#s2">在 tracker 格式家族中的位置</a></li>
+    <li><a href="#s3">整体文件布局</a></li>
+    <li><a href="#s4">主头部（336 字节）</a></li>
+    <li><a href="#s5">模式数据（Pattern）</a></li>
+    <li><a href="#s6">乐器数据（Instrument）</a></li>
+    <li><a href="#s7">采样数据编码：Delta 差分</a></li>
+    <li><a href="#s8">频率表：最重要的设计决策</a></li>
+    <li><a href="#s9">兼容性处理与限制</a></li>
+    <li><a href="#s10">保存侧（导出 XM）</a></li>
+    <li><a href="#s11">字节地图</a></li>
+    <li><a href="#s12">源码索引</a></li>
+    <li><a href="#s13">外部参考</a></li>
+  </ol>
+</nav>
+
+<!-- ============ 1 ============ -->
+<section id="s1">
+  <h2>1. 一句话定义</h2>
+  <p><strong>XM（eXtended Module，扩展模块）是 FastTracker II 的原生模块文件格式</strong>，1994 年由 Triton 的两位作者 Fredrik "Mr.H" Huss 与 Magnus "Vogue" Högdahl 设计。它是 4 声道 ProTracker MOD 格式的全面扩展：声道数上限提升到 32，引入"乐器（instrument）"层级，增加音量/声像包络与自动颤音，并在采样层支持 8/16 位与循环点。</p>
+  <p>从文件结构上看，XM 不是音频编码，而是一份<strong>曲谱 + 采样库的归档</strong>：它描述"在什么时间、用什么音高、什么音量、在哪个声道上播放哪段采样，以及施加什么效果"，实际发声由播放器（replayer）实时合成。</p>
+  <p>本仓库 <code>ft2-clone</code> 即是一个以"逐比特精确复刻"为目标的 FastTracker II 克隆，其 XM 加载器 <code>src/modloaders/ft2_load_xm.c</code> 与保存器 <code>ft2_module_saver.c</code> 直接移植自原版 FT2 源码。</p>
+</section>
+
+<!-- ============ 2 ============ -->
+<section id="s2">
+  <h2>2. 在 tracker 模块格式家族中的位置</h2>
+  <div class="table-scroll">
+  <table>
+    <thead>
+      <tr><th>格式</th><th>全称</th><th>诞生</th><th>魔数 / 标识</th><th>最大声道</th><th>乐器层级</th><th>频率表模式</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>MOD</td><td>Amiga Module</td><td>1987</td><td>偏移 1080 处 <code>M.K.</code> 等</td><td>4</td><td>无（扁平采样）</td><td>Amiga</td></tr>
+      <tr><td>S3M</td><td>Scream Tracker 3 Module</td><td>1990</td><td>偏移 0x2C 处 <code>SCRM</code></td><td>32</td><td>无</td><td>可选</td></tr>
+      <tr><td><strong>XM</strong></td><td><strong>eXtended Module</strong></td><td><strong>1994</strong></td><td><strong>偏移 0 处 <code>"Extended Module: "</code></strong></td><td><strong>32</strong></td><td><strong>有</strong></td><td><strong>线性 / Amiga 可选</strong></td></tr>
+      <tr><td>IT</td><td>Impulse Tracker Module</td><td>1996</td><td>偏移 0 处 <code>IMPM</code></td><td>64</td><td>有</td><td>可选 + 滤波/NNA</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p>XM 的历史意义在于：它是第一个把"采样 + 包络 + 乐器抽象"完整写进公开文档的模块格式，也因此成了 1990 年代中后期 PC 端作曲的事实标准之一，其规范被 OpenMPT、libxm、libmodplug 等大量第三方实现遵循。</p>
+  <p>本仓库的格式判定顺序见 <code>src/ft2_module_loader.c</code>：先探测 BEM、DIGI Booster、IT，再在偏移 0 处比对 17 字节字符串 <code>"Extended Module: "</code>，命中即判为 <code>FORMAT_XM</code>（<code>ft2_module_loader.c:145-150</code>）。</p>
+</section>
+
+<!-- ============ 3 ============ -->
+<section id="s3">
+  <h2>3. 整体文件布局</h2>
+  <p>XM 文件是<strong>三段式串行结构</strong>，没有全局索引表，因此必须顺序解析：</p>
+  <pre class="bytemap"><code>┌──────────────────────────────────────────────┐
+│ 1. 主头部 (XM Header)          336 字节       │
+│    - 魔数、歌曲名、版本、默认速度/BPM          │
+│    - 256 字节 order 表（播放顺序）             │
+├──────────────────────────────────────────────┤
+│ 2. 模式数据 (Pattern Data)      N × 变长       │
+│    - 每个 pattern 自带头部 + 打包(packed)数据    │
+├──────────────────────────────────────────────┤
+│ 3. 乐器数据 (Instruments)       M × 变长       │
+│    - 乐器头部 263 字节 + 采样头部 40 字节/个     │
+│    - 随后紧跟所有采样的 delta 编码波形数据        │
+└──────────────────────────────────────────────┘</code></pre>
+  <p><strong>关键的顺序陷阱</strong>：三段在文件中的先后顺序随版本而变，加载器必须分支处理（<code>ft2_load_xm.c:106-140</code>）：</p>
+  <ul>
+    <li><strong>v1.02 / v1.03</strong>：<code>头部 → 全部乐器头部 → 全部 pattern → 全部采样数据</code></li>
+    <li><strong>v1.04（最终版）</strong>：<code>头部 → 全部 pattern → 逐乐器（头部 + 采样数据）</code></li>
+  </ul>
+  <p>这是 XM 最著名的实现坑之一。本仓库显式实现了两条解析路径，这也是为什么 <code>loadPatterns()</code> 与 <code>loadInstrHeader()/loadInstrSample()</code> 被拆成可独立调用的两个阶段。</p>
+</section>
+
+<!-- ============ 4 ============ -->
+<section id="s4">
+  <h2>4. 主头部（336 字节）</h2>
+  <p>对应代码结构体 <code>xmHdr_t</code>（<code>src/ft2_replayer.h:98-110</code>，按 1 字节对齐打包 <code>#pragma pack(1)</code>）：</p>
+  <div class="table-scroll">
+  <table>
+    <thead>
+      <tr><th>偏移</th><th>长度</th><th>字段（代码名）</th><th>含义</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><code>0x00</code></td><td>17</td><td><code>ID</code></td><td>魔数，固定 ASCII <code>"Extended Module: "</code>（含末尾空格）</td></tr>
+      <tr><td><code>0x11</code></td><td>20</td><td><code>name</code></td><td>歌曲名，不足补 <code>0x00</code>，末尾补 <code>0x1A</code>（DOS EOF）</td></tr>
+      <tr><td><code>0x25</code></td><td>1</td><td><code>x1A</code></td><td>固定 <code>0x1A</code>，用于校验</td></tr>
+      <tr><td><code>0x26</code></td><td>20</td><td><code>progName</code></td><td>制作软件名。原版 FT2 写入 <code>"FastTracker v2.00&nbsp;&nbsp;&nbsp;"</code>（空格填充）；本仓库写入 <code>PROG_NAME_STR = "Fasttracker II clone"</code>（<code>ft2_module_saver.c:67-69</code>）</td></tr>
+      <tr><td><code>0x3A</code></td><td>2</td><td><code>version</code></td><td>格式版本，小端。本仓库仅接受 <code>0x0102</code>–<code>0x0104</code></td></tr>
+      <tr><td><code>0x3C</code></td><td>4</td><td><code>headerSize</code></td><td>头部扩展长度，<strong>以 <code>0x3C</code> 为起点计量</strong>。原版 FT2 恒为 <code>276</code>（= 20 + 256）</td></tr>
+      <tr><td><code>0x40</code></td><td>2</td><td><code>numOrders</code></td><td>歌曲长度（order 表有效条目数）</td></tr>
+      <tr><td><code>0x42</code></td><td>2</td><td><code>songLoopStart</code></td><td>循环回跳位置（order 索引）</td></tr>
+      <tr><td><code>0x44</code></td><td>2</td><td><code>numChannels</code></td><td>声道数（1–32 为正常范围）</td></tr>
+      <tr><td><code>0x46</code></td><td>2</td><td><code>numPatterns</code></td><td>模式数量</td></tr>
+      <tr><td><code>0x48</code></td><td>2</td><td><code>numInstr</code></td><td>乐器数量</td></tr>
+      <tr><td><code>0x4A</code></td><td>2</td><td><code>flags</code></td><td><strong><code>bit 0</code> = 1 表示使用线性频率表，= 0 表示 Amiga 频率表</strong>（见第 8 节）</td></tr>
+      <tr><td><code>0x4C</code></td><td>2</td><td><code>speed</code></td><td>默认每行 tick 数（1–31）</td></tr>
+      <tr><td><code>0x4E</code></td><td>2</td><td><code>BPM</code></td><td>默认 BPM（32–255）</td></tr>
+      <tr><td><code>0x50</code></td><td>256</td><td><code>orders</code></td><td>播放顺序表；每字节为一个 pattern 编号，<code>0xFF</code> 表示结束/填充</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p><strong>尺寸自检</strong>：17+20+1+20 = 58（到 <code>version</code> 前）；加 2+4 = 64（到 <code>headerSize</code> 未）；再加 4×2 = 72；再加 4×2 = 80；再加 256 = <strong>336</strong>。这正是 <code>ft2_load_xm.c:71</code> 中"文件总长恰为 336 即为空模块"判断的由来。</p>
+  <p>头部解析后，加载器执行 <code>fseek(f, 60 + headerSize, SEEK_SET)</code> 跳到第一段数据（<code>ft2_load_xm.c:70</code>）——注意是 <code>60 + headerSize</code> 而非 <code>64</code>，因为 <code>headerSize</code> 只覆盖 <code>0x3C</code> 之后的部分。</p>
+</section>
+
+<!-- ============ 5 ============ -->
+<section id="s5">
+  <h2>5. 模式数据（Pattern）</h2>
+
+  <h3>5.1 Pattern 头部</h3>
+  <p>对应 <code>xmPatHdr_t</code>（<code>ft2_replayer.h:112-122</code>）：</p>
+  <div class="table-scroll">
+  <table>
+    <thead>
+      <tr><th>偏移</th><th>长度</th><th>字段</th><th>说明</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><code>0x00</code></td><td>4</td><td><code>headerSize</code></td><td>头部长度（v1.04 为 9，v1.02 为 8）</td></tr>
+      <tr><td><code>0x04</code></td><td>1</td><td><code>type</code></td><td>打包类型，<strong>恒为 0</strong></td></tr>
+      <tr><td><code>0x05</code></td><td>2</td><td><code>numRows</code></td><td>行数（v1.02 为 1 字节，且<strong>存储值 = 实际行数 − 1</strong>）</td></tr>
+      <tr><td><code>0x07</code></td><td>2</td><td><code>dataSize</code></td><td>后续打包数据的字节数</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p>v1.02 分支中行数的 "+1" 补偿见 <code>ft2_load_xm.c:436</code>。若 <code>headerSize</code> 大于标准值，加载器会前跳跳过扩展字节（<code>ft2_load_xm.c:438-450</code>），这保证了向前兼容。</p>
+
+  <h3>5.2 打包（Packed）格式与解包算法</h3>
+  <p>Pattern 数据是<strong>逐行、逐声道</strong>的 5 元组流：<code>note</code>、<code>instr</code>、<code>vol</code>、<code>efx</code>、<code>efxData</code> 各 1 字节。为压缩，XM 用一个"标志字节"控制后续字段是否存在：</p>
+  <pre><code>读取 1 字节 b：
+  if (b &amp; 0x80) == 0:
+      非压缩组 —— b 本身即 note，再直读 instr/vol/efx/efxData 共 4 字节
+      → 共 5 字节
+  else:
+      压缩组 —— 各位独立表决该字段是否存在于流中：
+        bit0 → note     存在则读 1 字节
+        bit1 → instr    存在则读 1 字节
+        bit2 → vol      存在则读 1 字节
+        bit3 → efx      存在则读 1 字节
+        bit4 → efxData  存在则读 1 字节
+      缺省字段填充为 0</code></pre>
+  <p>实现见 <code>unpackPattern()</code>（<code>ft2_load_xm.c:500-568</code>）。两个值得注意的工程细节：</p>
+  <ol>
+    <li><strong>溢出防护</strong>：解包函数带 <code>bytesWritten &gt;= unpackedBytes</code> 检查，数据损坏时直接返回而非越界写（<code>ft2_load_xm.c:517-518</code>）。</li>
+    <li><strong>超限声道的空转</strong>：当模块声道数超过 32 时，超出部分仍必须<strong>按压缩流语法正确跳过</strong>，否则后续字节全错位——代码为此写了一段只 <code>src++</code> 不落盘的镜像逻辑（<code>ft2_load_xm.c:542-562</code>）。这是流式压缩格式的典型陷阱。</li>
+  </ol>
+
+  <h3>5.3 语义要点</h3>
+  <ul>
+    <li><code>note</code>：<code>0</code> 表示空；<code>1–96</code> 对应显示音名 <code>C-0</code> 至 <code>B-7</code>（<code>49</code> = <code>C-4</code> = 中央 C）；<strong><code>97</code> = Key Off（松键）</strong>（<code>ft2_replayer.h:55</code> <code>NOTE_OFF 97</code>）。</li>
+    <li><code>instr</code>：乐器编号（1 基）。</li>
+    <li><code>vol</code>：<strong>音量列</strong>，独立于效果列，编码见 5.4。</li>
+    <li><code>efx</code> / <code>efxData</code>：效果号与参数。</li>
+    <li>全空 pattern（<code>tmpPatternEmpty()</code>）会被释放并回退为默认 64 行（<code>ft2_load_xm.c:478-487</code>）。</li>
+  </ul>
+
+  <h3>5.4 音量列（Volume Column）编码</h3>
+  <p>高 4 位为命令、低 4 位为参数。命令表由 <code>v_*</code> 函数与跳转表给出（<code>ft2_replayer.c:1151-1165</code>）：</p>
+  <div class="table-scroll">
+  <table>
+    <thead>
+      <tr><th>高 4 位</th><th>命令</th><th>说明</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><code>0x0</code></td><td>无</td><td></td></tr>
+      <tr><td><code>0x1</code>–<code>0x5</code></td><td>Set Volume</td><td>直接设定音量（0–64）</td></tr>
+      <tr><td><code>0x6</code></td><td>Volume Slide Down</td><td>每 tick 减</td></tr>
+      <tr><td><code>0x7</code></td><td>Volume Slide Up</td><td>每 tick 加</td></tr>
+      <tr><td><code>0x8</code></td><td>Fine Volume Slide Down</td><td>仅 tick 0 生效</td></tr>
+      <tr><td><code>0x9</code></td><td>Fine Volume Slide Up</td><td>仅 tick 0 生效</td></tr>
+      <tr><td><code>0xA</code></td><td>Set Vibrato Speed</td><td>只改速度，不改深度</td></tr>
+      <tr><td><code>0xB</code></td><td>Vibrato</td><td>执行颤音</td></tr>
+      <tr><td><code>0xC</code></td><td>Set Panning</td><td>设定声像</td></tr>
+      <tr><td><code>0xD</code></td><td>Panning Slide Left</td><td>声像左移</td></tr>
+      <tr><td><code>0xE</code></td><td>Panning Slide Right</td><td>声像右移</td></tr>
+      <tr><td><code>0xF</code></td><td>Tone Portamento</td><td>滑音到目标音高</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p class="note">注意 <code>0xC</code>（Set Panning）与效果列的 <code>8xx</code>（Set Panning）功能重叠但编码不同；这是 XM 的历史遗留，两者需分别实现。</p>
+
+  <h3>5.5 效果列</h3>
+  <p><code>efx</code> 字节<strong>不止 0x0–0xF</strong>。FT2 在内部把扩展效果编号写进同一字节，取值范围扩展到 <code>0x00–0x23</code>，跳转表 <code>JumpTab_TickZero[36]</code> / <code>JumpTab_TickNonZero[36]</code> 正是 36 项（<code>ft2_replayer.c:985, 2234</code>）。其映射规律为 <code>0x10 + n</code> 对应字母 <code>G + n</code>：</p>
+  <div class="table-scroll">
+  <table>
+    <thead>
+      <tr><th>效果号</th><th>助记符</th><th>含义</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><code>0x00</code></td><td><code>0xx</code></td><td>Arpeggio（琶音）</td></tr>
+      <tr><td><code>0x01</code></td><td><code>1xx</code></td><td>Portamento Up（上滑音）</td></tr>
+      <tr><td><code>0x02</code></td><td><code>2xx</code></td><td>Portamento Down（下滑音）</td></tr>
+      <tr><td><code>0x03</code></td><td><code>3xx</code></td><td>Tone Portamento（滑向目标音高）</td></tr>
+      <tr><td><code>0x04</code></td><td><code>4xx</code></td><td>Vibrato</td></tr>
+      <tr><td><code>0x05</code></td><td><code>5xx</code></td><td>Tone Porta + Volume Slide</td></tr>
+      <tr><td><code>0x06</code></td><td><code>6xx</code></td><td>Vibrato + Volume Slide</td></tr>
+      <tr><td><code>0x07</code></td><td><code>7xx</code></td><td>Tremolo</td></tr>
+      <tr><td><code>0x08</code></td><td><code>8xx</code></td><td>Set Panning Position</td></tr>
+      <tr><td><code>0x09</code></td><td><code>9xx</code></td><td>Set Sample Offset</td></tr>
+      <tr><td><code>0x0A</code></td><td><code>Axx</code></td><td>Volume Slide</td></tr>
+      <tr><td><code>0x0B</code></td><td><code>Bxx</code></td><td>Position Jump（跳转 order）</td></tr>
+      <tr><td><code>0x0C</code></td><td><code>Cxx</code></td><td>Set Volume</td></tr>
+      <tr><td><code>0x0D</code></td><td><code>Dxx</code></td><td>Pattern Break（跳行）</td></tr>
+      <tr><td><code>0x0E</code></td><td><code>Exx</code></td><td>Extended（子命令 <code>E0</code>–<code>EF</code>，含 <code>E5x</code> 定音准、<code>E8x</code> 声像、<code>EDx</code> 延迟音符等）</td></tr>
+      <tr><td><code>0x0F</code></td><td><code>Fxx</code></td><td>Set Speed / Tempo</td></tr>
+      <tr><td><code>0x10</code></td><td><code>Gxx</code></td><td>Set Global Volume</td></tr>
+      <tr><td><code>0x11</code></td><td><code>Hxx</code></td><td>Global Volume Slide</td></tr>
+      <tr><td><code>0x14</code></td><td><code>Kxx</code></td><td>Key Off（<code>K00</code> 于 tick 0 处理，<code>ft2_replayer.c:1418</code>）</td></tr>
+      <tr><td><code>0x15</code></td><td><code>Lxx</code></td><td>Set Envelope Position</td></tr>
+      <tr><td><code>0x19</code></td><td><code>Pxx</code></td><td>Panning Slide</td></tr>
+      <tr><td><code>0x1B</code></td><td><code>Rxx</code></td><td>Multi Retrig Note（<code>ft2_replayer.c:1309</code>）</td></tr>
+      <tr><td><code>0x1D</code></td><td><code>Txx</code></td><td>Tremor</td></tr>
+      <tr><td><code>0x21</code></td><td><code>X1x</code></td><td>Extra Fine Portamento Up（<code>ft2_replayer.c:1310</code>）</td></tr>
+      <tr><td><code>0x22</code></td><td><code>X2x</code></td><td>Extra Fine Portamento Down</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p><code>0x12/0x13/0x16–0x18/0x1A/0x1C/0x1E–0x20/0x23</code> 为未使用槽位，在跳转表中指向 <code>dummy</code>。</p>
+</section>
+
+<!-- ============ 6 ============ -->
+<section id="s6">
+  <h2>6. 乐器数据（Instrument）</h2>
+  <p>这是 XM 相对 MOD 的<strong>核心结构性升级</strong>：MOD 只有 31 个扁平采样，XM 则引入"乐器"作为一层抽象——一个乐器最多容纳 16 个采样，并以 96 键映射表决定"哪个音符用哪个采样"。</p>
+
+  <h3>6.1 乐器头部（263 字节）</h3>
+  <p>对应 <code>xmInsHdr_t</code>（<code>ft2_replayer.h:163-187</code>）。<code>INSTR_HEADER_SIZE = 263</code>（<code>ft2_replayer.h:63</code>）：</p>
+  <div class="table-scroll">
+  <table>
+    <thead>
+      <tr><th>偏移</th><th>长度</th><th>字段</th><th>说明</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><code>0x00</code></td><td>4</td><td><code>instrSize</code></td><td>头部长度。<strong>允许为 0</strong>，含义按 263 处理（<code>ft2_load_xm.c:199-201</code>）；大于 263 时跳过多余字节</td></tr>
+      <tr><td><code>0x04</code></td><td>22</td><td><code>name</code></td><td>乐器名（空格填充）</td></tr>
+      <tr><td><code>0x1A</code></td><td>1</td><td><code>type</code></td><td>恒为 0</td></tr>
+      <tr><td><code>0x1B</code></td><td>2</td><td><code>numSamples</code></td><td>采样数，<strong>官方 0–16</strong>；ModPlug/OpenMPT 扩展至 32</td></tr>
+      <tr><td><code>0x1D</code></td><td>4</td><td><code>sampleSize</code></td><td>每个采样头部的长度，恒为 40</td></tr>
+      <tr><td><code>0x21</code></td><td>96</td><td><code>note2SampleLUT</code></td><td>96 键 → 采样序号映射（值 0–15，指向本乐器内的采样槽）</td></tr>
+      <tr><td><code>0x81</code></td><td>48</td><td><code>volEnvPoints[12][2]</code></td><td>音量包络：12 个点，每点 <code>x(0–32767)</code>、<code>y(0–64)</code> 各 <code>int16</code></td></tr>
+      <tr><td><code>0xB1</code></td><td>48</td><td><code>panEnvPoints[12][2]</code></td><td>声像包络：12 个点，<code>y</code> 范围 <code>0–63</code></td></tr>
+      <tr><td><code>0xE1</code></td><td>1</td><td><code>volEnvLength</code></td><td>音量包络实际点数</td></tr>
+      <tr><td><code>0xE2</code></td><td>1</td><td><code>panEnvLength</code></td><td>声像包络实际点数</td></tr>
+      <tr><td><code>0xE3</code></td><td>1</td><td><code>volEnvSustain</code></td><td>音量延音点索引</td></tr>
+      <tr><td><code>0xE4</code></td><td>1</td><td><code>volEnvLoopStart</code></td><td>音量循环起点</td></tr>
+      <tr><td><code>0xE5</code></td><td>1</td><td><code>volEnvLoopEnd</code></td><td>音量循环终点</td></tr>
+      <tr><td><code>0xE6</code></td><td>1</td><td><code>panEnvSustain</code></td><td>声像延音点</td></tr>
+      <tr><td><code>0xE7</code></td><td>1</td><td><code>panEnvLoopStart</code></td><td>声像循环起点</td></tr>
+      <tr><td><code>0xE8</code></td><td>1</td><td><code>panEnvLoopEnd</code></td><td>声像循环终点</td></tr>
+      <tr><td><code>0xE9</code></td><td>1</td><td><code>volEnvFlags</code></td><td><code>bit0</code> 启用 / <code>bit1</code> 延音 / <code>bit2</code> 循环（<code>ENV_ENABLED/SUSTAIN/LOOP</code>，<code>ft2_replayer.h:76-81</code>）</td></tr>
+      <tr><td><code>0xEA</code></td><td>1</td><td><code>panEnvFlags</code></td><td>同上</td></tr>
+      <tr><td><code>0xEB</code></td><td>1</td><td><code>vibType</code></td><td>自动颤音波形（0 正弦 / 1 方波 / 2 锯齿 / 3 噪声）</td></tr>
+      <tr><td><code>0xEC</code></td><td>1</td><td><code>vibSweep</code></td><td>颤音渐入（ramp-up）速度</td></tr>
+      <tr><td><code>0xED</code></td><td>1</td><td><code>vibDepth</code></td><td>颤音深度</td></tr>
+      <tr><td><code>0xEE</code></td><td>1</td><td><code>vibRate</code></td><td>颤音频率</td></tr>
+      <tr><td><code>0xEF</code></td><td>2</td><td><code>fadeout</code></td><td>松键后音量淡出速度</td></tr>
+      <tr><td><code>0xF1</code></td><td>1</td><td><code>midiOn</code></td><td>MIDI 输出开关</td></tr>
+      <tr><td><code>0xF2</code></td><td>1</td><td><code>midiChannel</code></td><td>MIDI 通道</td></tr>
+      <tr><td><code>0xF3</code></td><td>2</td><td><code>midiProgram</code></td><td>MIDI 音色号</td></tr>
+      <tr><td><code>0xF5</code></td><td>2</td><td><code>midiBend</code></td><td>MIDI 弯音</td></tr>
+      <tr><td><code>0xF7</code></td><td>1</td><td><code>mute</code></td><td>乐器静音标记</td></tr>
+      <tr><td><code>0xF8</code></td><td>15</td><td><code>junk[15]</code></td><td>保留填充</td></tr>
+      <tr><td><code>0x107</code></td><td>—</td><td><code>smp[16]</code></td><td><strong>紧跟其后的 16 个采样头部（每个 40 字节）不属于本结构体</strong>，需单独读取</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <div class="callout">
+    <strong>两处与文档不符的实测细节</strong>（原版 FT2 的行为，本仓库如实复刻）：
+    <ol>
+      <li><strong><code>fadeout</code> 的数值范围</strong>：XM 规范文档写作 <code>0–65535</code>，但原版 FT2 实际按 <code>0–32768</code> 处理。代码注释明确标注了这一点：<code>ft2_replayer.c:389-390</code> 中 <code>ch-&gt;fadeoutVol = 32768</code>，即淡出计数器的量程上限是 32768 而非 65536。</li>
+      <li><strong><code>volEnvPoints</code> 的读取</strong>：无论 <code>volEnvLength</code> 是多少，加载器总是整块拷贝 12 个点（<code>ft2_load_xm.c:236-237</code>），因为磁盘上这 48 字节恒定存在。</li>
+    </ol>
+  </div>
+
+  <h3>6.2 采样头部（40 字节）</h3>
+  <p>对应 <code>xmSmpHdr_t</code>（<code>ft2_replayer.h:148-161</code>）：</p>
+  <div class="table-scroll">
+  <table>
+    <thead>
+      <tr><th>偏移</th><th>长度</th><th>字段</th><th>说明</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><code>0x00</code></td><td>4</td><td><code>length</code></td><td>波形数据长度，<strong>单位为字节</strong>（16 位采样需 ×2 换算成采样点数）</td></tr>
+      <tr><td><code>0x04</code></td><td>4</td><td><code>loopStart</code></td><td>循环起点（字节）</td></tr>
+      <tr><td><code>0x08</code></td><td>4</td><td><code>loopLength</code></td><td>循环长度（字节）</td></tr>
+      <tr><td><code>0x0C</code></td><td>1</td><td><code>volume</code></td><td>默认音量 <code>0–64</code></td></tr>
+      <tr><td><code>0x0D</code></td><td>1</td><td><code>finetune</code></td><td>有符号微调，原版范围 <code>-128…127</code>（存档时按 <code>&lt;&lt;4</code> 与 MOD 互转，见 <code>FINETUNE_MOD2XM</code>）</td></tr>
+      <tr><td><code>0x0E</code></td><td>1</td><td><code>flags</code></td><td><code>bit0–1</code> 循环类型（0 无 / 1 前向 / 2 乒乓）；<code>bit4</code> = 16 位；<code>bit5</code> = 立体声（ModPlug 扩展）</td></tr>
+      <tr><td><code>0x0F</code></td><td>1</td><td><code>panning</code></td><td>声像 <code>0–255</code></td></tr>
+      <tr><td><code>0x10</code></td><td>1</td><td><code>relativeNote</code></td><td>相对音高，有符号。生效公式：<code>relativeNote = (note&gt;&gt;4) - 48</code>（<code>ft2_replayer.c:163</code>）</td></tr>
+      <tr><td><code>0x11</code></td><td>1</td><td><code>nameLength</code></td><td>规范中为保留字节；<strong>实测用作 ADPCM 标记</strong>（见 6.4）</td></tr>
+      <tr><td><code>0x12</code></td><td>22</td><td><code>name</code></td><td>采样名</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p><strong>长度换算要点</strong>：代码在内存中统一以"采样点数"为单位，因此加载 16 位采样时会先执行 <code>length &gt;&gt;= 1</code>、<code>loopStart &gt;&gt;= 1</code>、<code>loopLength &gt;&gt;= 1</code>（<code>ft2_load_xm.c:349-354</code>）。这也意味着 16 位采样的字节长度必须是偶数，否则奇数字节会错位。</p>
+</section>
+
+<!-- ============ 7 ============ -->
+<section id="s7">
+  <h2>7. 采样数据编码：Delta 差分</h2>
+  <p>XM 的波形数据<strong>不是</strong>直接存放 PCM，而是<strong>差分（delta）编码</strong>：每个采样点存的是"与前一采样点的差值"，首点相对 0 计算。解码即前缀和：</p>
+  <pre><code>// 8 位：逐字节累加（int8 自然溢出，等价于 int16 截断到 8 位）
+news8 = data[i] + prev; data[i] = news8; prev = news8;
+
+// 16 位：按 16 位字累加（小端 int16）
+news16 = data16[i] + prev; data16[i] = news16; prev = news16;</code></pre>
+  <p>实现见 <code>delta2Samp()</code>（<code>ft2_replayer.c:2498-2577</code>），保存时逆运算 <code>samp2Delta()</code>（<code>ft2_replayer.c:2579</code>）。</p>
+  <p>差分编码的实际收益是：波形中相邻点的差值通常远小于绝对值，配合压缩器可获得更好的压缩率。它是 Amiga MOD 起就存在的传统，XM 沿用。</p>
+
+  <h3>7.1 立体声与混单</h3>
+  <p>官方 XM 规范<strong>不支持立体声</strong>，但 ModPlug Tracker / OpenMPT 用 <code>flags.bit5</code> 扩展了它，数据布局为<strong>左声道整块在前、右声道整块在后</strong>（非交错）。本仓库支持读取但会在加载时<strong>下混为单声道</strong>（<code>ft2_replayer.c:2503-2548</code> 中 <code>(L + R) &gt;&gt; 1</code>），随后把长度与循环点减半并释放多余内存（<code>ft2_load_xm.c:382-395</code>）。</p>
+
+  <h3>7.2 ADPCM 扩展（ModPlug）</h3>
+  <p>若采样为 8 位单声道且保留字节为 <code>0xAD</code>，则该采样是 ModPlug 的 4-bit ADPCM 压缩格式（<code>ft2_load_xm.c:299-300</code> 置位 <code>SAMPLE_ADPCM</code>）。解码方式：先读 16 字节差分查表 <code>deltaLUT[16]</code>，再把每个字节的高/低 4 位分别作为查表索引累加，每次输出 2 个采样点（<code>ft2_load_xm.c:570-589</code>）。</p>
+  <p>这是 ModPlug 的私有扩展，不是 XM 规范的一部分，但已成为事实兼容性要求。</p>
+</section>
+
+<!-- ============ 8 ============ -->
+<section id="s8">
+  <h2>8. 频率表：XM 最重要的设计决策</h2>
+  <p>头部 <code>flags</code> 的 <strong>bit 0</strong> 决定音高换算用哪张表，这是 XM 与 MOD 分道扬镳的关键点，也是"线性频率表（Linear Frequency Table）"这一术语的来源。</p>
+
+  <h3>8.1 两种模式</h3>
+  <div class="table-scroll">
+  <table>
+    <thead>
+      <tr><th></th><th><code>flags.bit0 = 0</code> → Amiga</th><th><code>flags.bit0 = 1</code> → Linear</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>音高曲线</td><td>沿用 MOD 的 Amiga period 表</td><td>按对数（等音程）插值</td></tr>
+      <tr><td>移调/滑音听感</td><td>非线性</td><td>线性，音程听感均匀</td></tr>
+      <tr><td>与 MOD 兼容性</td><td>高</td><td>低（同一效果参数听感不同）</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p>Amiga 模式下 period 与实际频率成反比；线性模式下 period 是半音等差的，因此"每 tick 固定步长的滑音"在任何音区都产生相同的音分变化量，这让滑音、颤音的手感更可预测——这正是 FastTracker II 推广线性表的动机。</p>
+  <p>本仓库用两张 <strong>1936 项</strong> <code>uint16</code> 查找表实现，且声明为"与原版 FT2 逐比特一致"（<code>ft2_tables.c:61</code> <code>linearPeriodLUT</code>，<code>ft2_tables.h:16-17</code>）：</p>
+  <pre><code>extern const uint16_t linearPeriodLUT[1936];  // 线性频率表
+extern const uint16_t amigaPeriodLUT[1936];   // Amiga (MOD) 频率表</code></pre>
+  <p>索引计算 = <code>note * 16 + ((finetune &gt;&gt; 3) + 16)</code>（<code>ft2_replayer.c:292</code>），即"每半音 16 个插值档位 × 微调细分"。加载时：</p>
+  <pre><code>tmpLinearPeriodsFlag = !!(header.flags &amp; 1);   // ft2_load_xm.c:85</code></pre>
+  <p>运行时通过函数指针切换整表：<code>setLinearPeriods()</code> 令 <code>note2PeriodLUT = linearPeriodLUT</code> 或 <code>amigaPeriodLUT</code>（<code>ft2_replayer.c:315-324</code>）。保存时则回写 <code>h.flags = audio.linearPeriodsFlag</code>（<code>ft2_module_saver.c:97</code>）。</p>
+
+  <h3>8.2 实践含义</h3>
+  <p>打开或导入 XM 时<strong>必须</strong>先读 <code>flags</code> 再初始化播放器，否则所有音高、滑音、颤音都会整体偏移。这也是跨 tracker 迁移模块时"听起来不对"的头号原因。</p>
+</section>
+
+<!-- ============ 9 ============ -->
+<section id="s9">
+  <h2>9. 本仓库实现中的兼容性处理与限制</h2>
+  <p><code>ft2-clone</code> 以"加载更多、丢弃更多"为策略，对超出原版 FT2 能力的文件做了如下处理。这些常量定义在 <code>src/ft2_replayer.h:51-65</code>：</p>
+  <div class="table-scroll">
+  <table>
+    <thead>
+      <tr><th>常量</th><th>值</th><th>含义</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><code>MAX_CHANNELS</code></td><td>32</td><td>最大声道数</td></tr>
+      <tr><td><code>MAX_PATTERNS</code></td><td>256</td><td>最大 pattern 数</td></tr>
+      <tr><td><code>MAX_PATT_LEN</code></td><td>256</td><td>单 pattern 最大行数</td></tr>
+      <tr><td><code>MAX_ORDERS</code></td><td>256</td><td>最大 order 数</td></tr>
+      <tr><td><code>MAX_INST</code></td><td>128</td><td>最大乐器数</td></tr>
+      <tr><td><code>MAX_SMP_PER_INST</code></td><td>16</td><td>每乐器最大采样数</td></tr>
+      <tr><td><code>INSTR_HEADER_SIZE</code></td><td>263</td><td>乐器头部标准长度</td></tr>
+      <tr><td><code>MAX_SAMPLE_LEN</code></td><td><code>0x3FFFFFFF</code></td><td>单采样最大长度</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p>具体降级行为：</p>
+  <ol>
+    <li><strong>声道数 &gt; 32</strong>：保留前 32 声道，其余丢弃并弹出警告；pattern 解包阶段仍需按压缩语法空转跳过超限声道数据（<code>ft2_load_xm.c:173-177</code>、<code>500-567</code>）。</li>
+    <li><strong>乐器数 &gt; 128</strong>：临时加载后在收尾阶段释放，仅前 128 个保留（<code>ft2_load_xm.c:63-64, 142-153, 179-180</code>）。</li>
+    <li><strong>乐器采样数 &gt; 16</strong>（ModPlug 最多 32）：只保留前 16 个，额外采样头部的长度被暂存到 <code>extraSampleLengths[16]</code> 以便正确跳过其数据，最终丢弃（<code>ft2_load_xm.c:20, 270-279, 399-408</code>）。</li>
+    <li><strong>order 数</strong>：文件允许 256，但 FT2 仅支持 255，超出部分截断（<code>ft2_load_xm.c:102-104</code>）。</li>
+    <li><strong>order 表被 <code>0xFF</code> 填充</strong>：从尾部向前扫描并收缩有效长度（<code>ft2_load_xm.c:92-100</code>）。</li>
+    <li><strong>pattern 行数 &gt; 256</strong>：截断到 256 并提示（<code>ft2_load_xm.c:457-461, 490-491</code>）。</li>
+    <li><strong>乐器头部长度异常</strong>：为 0 或超过 263 时按 263 处理；大于 263 时跳过扩展字节（<code>ft2_load_xm.c:199-213</code>）。</li>
+    <li><strong>版本校验</strong>：仅接受 <code>0x0102</code>–<code>0x0104</code>，其余报错退出（<code>ft2_load_xm.c:44-49</code>）。</li>
+    <li><strong>空文件判定</strong>：读取头部后若文件恰好结束于偏移 336，判定为"空模块"报错（<code>ft2_load_xm.c:71-75</code>）。</li>
+  </ol>
+  <p>任何一处跳字节计算错误都会导致后续整条流错位，因此上述 3、4、6 项均采用"先记录长度、再在正确阶段精确 <code>fseek</code>"的两段式策略。</p>
+</section>
+
+<!-- ============ 10 ============ -->
+<section id="s10">
+  <h2>10. 保存侧（导出 XM）</h2>
+  <p><code>saveXM()</code>（<code>ft2_module_saver.c:31</code>）的输出恒为 <strong>v1.04</strong>：</p>
+  <ul>
+    <li><code>h.version = 0x0104</code>，<code>h.headerSize = 20 + 256 = 276</code>（<code>ft2_module_saver.c:71-72</code>）</li>
+    <li>程序名以空格填充至 20 字节（原版 FT2 同样如此，<code>ft2_module_saver.c:67-69</code>）</li>
+    <li>头部的 <code>instrSize</code> 恒写 263，且整个乐器头部先 <code>memset</code> 清零以清空保留字段（<code>ft2_module_saver.c:150, 200</code>）</li>
+    <li>采样写出前把内部 PCM 转为差分：<code>samp2Delta()</code> → 写盘 → <code>delta2Samp()</code> 还原内存态（<code>ft2_module_saver.c:257-263</code>），保证内存数据不被破坏</li>
+  </ul>
+  <p>体积估算逻辑可参见 <code>src/ft2_trim.c</code>：有采样的乐器按 <code>INSTR_HEADER_SIZE + n × sizeof(xmSmpHdr_t)</code> 计，无采样的"空乐器"占 <code>22 + 11</code> 字节（<code>ft2_trim.c:131-133</code>）。</p>
+</section>
+
+<!-- ============ 11 ============ -->
+<section id="s11">
+  <h2>11. 快速对照：一个 XM 文件的字节地图</h2>
+  <pre class="bytemap"><code>偏移 0x000                        主头部 336 B
+  ├ 0x000  "Extended Module: "    魔数 17 B
+  ├ 0x011  歌曲名                  20 B
+  ├ 0x03A  版本号                  2 B   (0x0104)
+  ├ 0x04A  flags                   2 B   ← bit0 = 线性频率表
+  └ 0x050  order 表                256 B ← 播放顺序
+偏移 0x150                        Pattern 段
+  ├ Pattern 头部                   9 B   (size/type/rows/dataSize)
+  └ 打包数据                       dataSize B  ← 标志字节 + 5 元组流
+                                  × numPatterns
+                                  ── 其后 ──
+                                  乐器段
+  ├ 乐器头部                       263 B (instrSize)
+  ├ 采样头部 1                     40 B
+  ├ … × numSamples(≤16)
+  ├ 采样 1 的 delta 波形数据        length 字节
+  ├ 采样 2 …
+  └ … × numInstr</code></pre>
+</section>
+
+<!-- ============ 12 ============ -->
+<section id="s12">
+  <h2>12. 源码索引（便于继续深入）</h2>
+  <div class="table-scroll">
+  <table>
+    <thead>
+      <tr><th>主题</th><th>位置</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>格式探测（魔数匹配）</td><td><code>src/ft2_module_loader.c:145-150, 201</code></td></tr>
+      <tr><td>XM 总加载流程</td><td><code>src/modloaders/ft2_load_xm.c:28-186</code></td></tr>
+      <tr><td>乐器头部解析</td><td><code>src/modloaders/ft2_load_xm.c:188-309</code></td></tr>
+      <tr><td>采样数据装载（含 ADPCM/立体声）</td><td><code>src/modloaders/ft2_load_xm.c:311-411</code></td></tr>
+      <tr><td>Pattern 解析与解包</td><td><code>src/modloaders/ft2_load_xm.c:413-568</code></td></tr>
+      <tr><td>XM 相关结构体定义</td><td><code>src/ft2_replayer.h:98-196</code></td></tr>
+      <tr><td>容量上限常量</td><td><code>src/ft2_replayer.h:47-67</code></td></tr>
+      <tr><td>频率查找表</td><td><code>src/ft2_tables.c:61</code>、<code>src/ft2_replayer.c:286-324</code></td></tr>
+      <tr><td>差分编解码</td><td><code>src/ft2_replayer.c:2498-2600</code></td></tr>
+      <tr><td>效果跳转表</td><td><code>src/ft2_replayer.c:985, 2234</code></td></tr>
+      <tr><td>音量列跳转表</td><td><code>src/ft2_replayer.c:1151-1165</code></td></tr>
+      <tr><td>XM 保存</td><td><code>src/ft2_module_saver.c:31-266</code></td></tr>
+      <tr><td>体积估算</td><td><code>src/ft2_trim.c:111-150, 676</code></td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<!-- ============ 13 ============ -->
+<section id="s13">
+  <h2>13. 外部参考</h2>
+  <ul>
+    <li>FastTracker II 官方 XM 格式文档（1994，随 FT2 发行包分发）</li>
+    <li>OpenMPT 的 XM 加载实现（对 ModPlug 各种私有扩展的权威说明）</li>
+    <li>libxm / libmodplug 的交叉实现，常用于验证解析器正确性</li>
+    <li>本仓库 <code>README.md</code>：明确列出所支持的 XM 超规范特性（立体声、非 32 声道、&gt;16 采样/乐器、&gt;128 pattern 等）</li>
+  </ul>
+</section>
+
+<div class="conclusion">
+  <p><strong>结论</strong>：XM 是"曲谱 + 多采样乐器 + 包络自动化 + 双频率表"的二进制容器格式，其解析难点集中在三点——<strong>三段顺序随版本变化</strong>、<strong>pattern 的位标志流式压缩</strong>、<strong><code>flags.bit0</code> 决定的频率表模式</strong>。任何 XM 实现只要把这三处处理正确，其余部分都是常规的定长/变长结构搬运。</p>
+</div>
+
+<footer>
+  XM 模块格式详解 · 基于 ft2-clone 源码生成 · 深色主题版
+</footer>
+
+</div>
+</body>
+</html>
